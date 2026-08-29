@@ -120,23 +120,44 @@
             <input type="text" id="valor" placeholder="R$ 0,00" oninput="mascaraMoeda(this)">
         </div>
         <div class="form-group-card">
+            <label>� Entrada Inicial (R$)</label>
+            <input type="text" id="entrada" placeholder="Opcional: R$ 0,00" oninput="mascaraMoeda(this)">
+        </div>
+        <div class="form-group-card">
             <label>👤 Renda Mensal (R$)</label>
             <input type="text" id="renda" placeholder="R$ 0,00" oninput="mascaraMoeda(this)">
         </div>
         <div class="form-group-card">
-            <label>⏳ Prazo Desejado (Meses)</label>
-            <input type="number" id="prazo" placeholder="Vazio = Sugerir ideal">
+            <label>⏳ Prazo Desejado</label>
+            <div class="input-with-button">
+                <input type="number" id="prazo" placeholder="Vazio = sugerir ideal" min="1">
+                <select id="prazoTipo" style="padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: white; min-width: 120px;">
+                    <option value="meses">Meses</option>
+                    <option value="anos">Anos</option>
+                </select>
+            </div>
         </div>
         <div class="form-group-card">
-            <label>📈 Taxa de Juros Anual (% a.a)</label>
+            <label id="labelTaxa">📈 Taxa de Juros Anual (% a.a)</label>
             <div class="input-with-button">
-                <input type="number" id="juros" placeholder="Ex: 10.5" step="0.1">
+                <input type="number" id="juros" placeholder="Ex: 10.5" step="0.01">
                 <button type="button" class="btn-selic" onclick="buscarSelic()" id="btnSelic">Selic Atual</button>
             </div>
         </div>
+        <div class="form-group-card">
+            <label>📊 Tipo da Taxa</label>
+            <select id="tipoJuros" onchange="atualizarLabelTaxa()" style="padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: white; font-size: 1em;">
+                <option value="anual">Anual (% a.a)</option>
+                <option value="mensal">Mensal (% a.m)</option>
+                <option value="diaria">Diária (% a.d)</option>
+            </select>
+        </div>
     </div>
 
-    <button class="btn-main-calc" onclick="calcular()">SIMULAR FINANCIAMENTO</button>
+    <div style="display: flex; gap: 12px; margin-top: 15px;">
+        <button class="btn-main-calc" onclick="calcular()" style="margin-top: 0; flex: 1;">SIMULAR FINANCIAMENTO</button>
+        <button type="button" class="btn-selic" onclick="limparFormulario()" style="margin-top: 0; min-width: 140px; background: #e2e8f0; color: #0f172a;">Limpar</button>
+    </div>
 
     <div id="alertError" class="alert alert-danger"></div>
     <div id="alertWarning" class="alert alert-warning"></div>
@@ -207,36 +228,85 @@
 <script>
     let chartInstance = null;
 
+    function atualizarLabelTaxa() {
+        const select = document.getElementById('tipoJuros');
+        const label = document.getElementById('labelTaxa');
+        const opcoes = {
+            anual: '📈 Taxa de Juros Anual (% a.a)',
+            mensal: '📈 Taxa de Juros Mensal (% a.m)',
+            diaria: '📈 Taxa de Juros Diária (% a.d)'
+        };
+        label.textContent = opcoes[select.value] || opcoes.anual;
+    }
+
+    function limparFormulario() {
+        document.getElementById('valor').value = '';
+        document.getElementById('entrada').value = '';
+        document.getElementById('renda').value = '';
+        document.getElementById('prazo').value = '';
+        document.getElementById('juros').value = '';
+        document.getElementById('tipoJuros').value = 'anual';
+        atualizarLabelTaxa();
+        document.getElementById('alertError').style.display = 'none';
+        document.getElementById('alertWarning').style.display = 'none';
+        document.getElementById('results').style.display = 'none';
+        if (chartInstance) {
+            chartInstance.destroy();
+            chartInstance = null;
+        }
+    }
+
+    function taxaParaMensal(valor, tipo) {
+        if (!Number.isFinite(valor) || valor <= 0) return 0;
+        if (tipo === 'mensal') return valor / 100;
+        if (tipo === 'diaria') return Math.pow(1 + (valor / 100), 30) - 1;
+        return Math.pow(1 + (valor / 100), 1 / 12) - 1;
+    }
+
     function mascaraMoeda(input) {
-        let valor = input.value.replace(/\D/g, ''); 
-        if (valor === '') { input.value = ''; return; }
-        valor = (parseInt(valor) / 100).toFixed(2) + ''; 
-        valor = valor.replace(".", ",");
-        valor = valor.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1."); 
-        input.value = "R$ " + valor;
+        let valor = input.value.replace(/\D/g, '');
+        if (!valor) {
+            input.value = '';
+            return;
+        }
+        const numero = (parseInt(valor, 10) / 100).toFixed(2);
+        input.value = 'R$ ' + numero.replace('.', ',').replace(/(\d)(?=(\d{3})+(?!\d))/g, '$1.');
     }
 
     function parseMoeda(str) {
-        if(!str) return 0;
-        return parseFloat(str.replace('R$ ', '').replace(/\./g, '').replace(',', '.'));
+        if (!str) return 0;
+        const texto = String(str).replace('R$ ', '').replace(/\./g, '').replace(',', '.').trim();
+        const numero = Number.parseFloat(texto);
+        return Number.isFinite(numero) ? numero : 0;
     }
 
     async function buscarSelic() {
         const btn = document.getElementById('btnSelic');
-        btn.textContent = "Buscando..."; btn.disabled = true;
+        btn.textContent = 'Buscando...';
+        btn.disabled = true;
         try {
             const response = await fetch('https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/1?formato=json');
             const data = await response.json();
-            document.getElementById('juros').value = data[0].valor;
-            btn.textContent = "Atualizado!";
-            setTimeout(() => { btn.textContent = "Selic Atual"; btn.disabled = false; }, 2500);
+            if (data && data[0] && data[0].valor) {
+                document.getElementById('juros').value = Number(data[0].valor).toFixed(2);
+                btn.textContent = 'Atualizado!';
+            } else {
+                throw new Error('Resposta inválida');
+            }
         } catch (error) {
-            btn.textContent = "Erro!";
-            setTimeout(() => { btn.textContent = "Selic Atual"; btn.disabled = false; }, 2500);
+            btn.textContent = 'Erro!';
+        } finally {
+            setTimeout(() => {
+                btn.textContent = 'Selic Atual';
+                btn.disabled = false;
+            }, 2000);
         }
     }
 
-    function formatar(valor) { return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+    function formatar(valor) {
+        if (!Number.isFinite(valor)) return 'R$ 0,00';
+        return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
 
     function mudarAba(tipo) {
         document.getElementById('btn-tab-sac').className = 'tab-btn' + (tipo === 'sac' ? ' active sac' : '');
@@ -245,141 +315,252 @@
         document.getElementById('tabela-price').style.display = tipo === 'price' ? 'block' : 'none';
     }
 
+    function calcularMesesMinimosSAC(valor, taxaMensal, parcelaMaxima) {
+        const diferenca = parcelaMaxima - (valor * taxaMensal);
+        if (diferenca <= 0) return 9999;
+        return Math.ceil(valor / diferenca);
+    }
+
+    function calcularMesesMinimosPRICE(valor, taxaMensal, parcelaMaxima) {
+        let meses = 1;
+        while (meses <= 600) {
+            const parcela = valor * (taxaMensal * Math.pow(1 + taxaMensal, meses)) / (Math.pow(1 + taxaMensal, meses) - 1);
+            if (parcela <= parcelaMaxima) return meses;
+            meses += 1;
+        }
+        return 600;
+    }
+
+    function gerarTabelaSAC(valor, taxaMensal, meses) {
+        const amortizacao = valor / meses;
+        let saldo = valor;
+        let totalJuros = 0;
+        const linhas = [];
+
+        for (let mes = 1; mes <= meses; mes++) {
+            const juros = saldo * taxaMensal;
+            const parcela = amortizacao + juros;
+            saldo = Math.max(0, saldo - amortizacao);
+            totalJuros += juros;
+            linhas.push({ mes, parcela, amortizacao, juros, saldo });
+        }
+
+        return {
+            meses,
+            amortizacao,
+            primeiraParcela: linhas[0].parcela,
+            ultimaParcela: linhas[linhas.length - 1].parcela,
+            totalJuros,
+            totalCusto: valor + totalJuros,
+            linhas
+        };
+    }
+
+    function gerarTabelaPRICE(valor, taxaMensal, meses) {
+        const parcela = valor * (taxaMensal * Math.pow(1 + taxaMensal, meses)) / (Math.pow(1 + taxaMensal, meses) - 1);
+        let saldo = valor;
+        let totalJuros = 0;
+        const linhas = [];
+
+        for (let mes = 1; mes <= meses; mes++) {
+            const juros = saldo * taxaMensal;
+            const amortizacao = parcela - juros;
+            saldo = Math.max(0, saldo - amortizacao);
+            totalJuros += juros;
+            linhas.push({ mes, parcela, amortizacao, juros, saldo });
+        }
+
+        return {
+            meses,
+            parcela,
+            totalJuros,
+            totalCusto: valor + totalJuros,
+            linhas
+        };
+    }
+
     function calcular() {
         const valor = parseMoeda(document.getElementById('valor').value);
+        const entrada = parseMoeda(document.getElementById('entrada').value);
         const renda = parseMoeda(document.getElementById('renda').value);
-        const jurosAno = parseFloat(document.getElementById('juros').value);
-        const prazoInput = parseInt(document.getElementById('prazo').value);
-        
+        const jurosInformados = Number.parseFloat(document.getElementById('juros').value);
+        const tipoJuros = document.getElementById('tipoJuros').value;
+        const prazoInput = Number.parseInt(document.getElementById('prazo').value, 10);
+        const prazoTipo = document.getElementById('prazoTipo').value;
+        const valorFinanciado = Math.max(0, valor - entrada);
+
         const alertError = document.getElementById('alertError');
         const alertWarning = document.getElementById('alertWarning');
         const results = document.getElementById('results');
 
-        if (!valor || !renda || !jurosAno) {
-            alertError.textContent = "Por favor, preencha Valor, Renda e Juros para simular.";
-            alertError.style.display = "block"; alertWarning.style.display = "none"; results.style.display = "none"; return;
+        if (!valor || !renda || !jurosInformados || valor <= 0 || renda <= 0 || jurosInformados <= 0) {
+            alertError.textContent = 'Por favor, preencha Valor, Renda e Juros com valores válidos.';
+            alertError.style.display = 'block';
+            alertWarning.style.display = 'none';
+            results.style.display = 'none';
+            return;
         }
 
-        const parcelaMaxima = renda * 0.30; 
-        const i = Math.pow(1 + (jurosAno / 100), 1 / 12) - 1; 
-        const jurosIniciais = valor * i;
-
-        if (jurosIniciais >= parcelaMaxima) {
-            alertError.textContent = `A parcela máxima permitida é ${formatar(parcelaMaxima)}, mas só os juros mensais já são ${formatar(jurosIniciais)}. Financiamento inviável com essa renda.`;
-            alertError.style.display = "block"; alertWarning.style.display = "none"; results.style.display = "none"; return;
+        if (valorFinanciado <= 0) {
+            alertError.textContent = 'O valor financiado precisa ser maior que zero. Ajuste o valor do empréstimo ou a entrada.';
+            alertError.style.display = 'block';
+            alertWarning.style.display = 'none';
+            results.style.display = 'none';
+            return;
         }
 
-        alertError.style.display = "none";
+        const parcelaMaxima = renda * 0.30;
+        const taxaMensal = taxaParaMensal(jurosInformados, tipoJuros);
+        const jurosMesInicial = valorFinanciado * taxaMensal;
+
+        if (jurosMesInicial >= parcelaMaxima) {
+            alertError.textContent = `A parcela máxima permitida é ${formatar(parcelaMaxima)}, mas os juros mensais já somam ${formatar(jurosMesInicial)}. Financiamento inviável com essa renda.`;
+            alertError.style.display = 'block';
+            alertWarning.style.display = 'none';
+            results.style.display = 'none';
+            return;
+        }
+
+        alertError.style.display = 'none';
+
+        const prazoMeses = prazoTipo === 'anos' ? (prazoInput ? prazoInput * 12 : 0) : prazoInput;
+
+        const mesesMinimosSAC = calcularMesesMinimosSAC(valorFinanciado, taxaMensal, parcelaMaxima);
+        const mesesMinimosPRICE = calcularMesesMinimosPRICE(valorFinanciado, taxaMensal, parcelaMaxima);
+        const mesesSAC = prazoMeses > 0 ? prazoMeses : mesesMinimosSAC;
+        const mesesPRICE = prazoMeses > 0 ? prazoMeses : mesesMinimosPRICE;
+
+        if (prazoMeses > 0 && (prazoMeses < mesesMinimosSAC || prazoMeses < mesesMinimosPRICE)) {
+            alertWarning.innerHTML = `⚠️ <strong>Atenção:</strong> o prazo de ${prazoMeses} meses gera parcelas acima de 30% da sua renda. <br> Sugestão mínima: <strong>${mesesMinimosSAC}</strong> meses no SAC ou <strong>${mesesMinimosPRICE}</strong> meses na PRICE.`;
+            alertWarning.style.display = 'block';
+            alertWarning.className = 'alert alert-warning';
+            alertWarning.style.backgroundColor = '#fef3c7';
+            alertWarning.style.color = '#92400e';
+            alertWarning.style.borderColor = '#fcd34d';
+        } else if (prazoMeses > 0) {
+            alertWarning.innerHTML = `✅ Excelente! O prazo escolhido de ${prazoMeses} meses mantém a parcela dentro do limite de 30% da renda.`;
+            alertWarning.style.display = 'block';
+            alertWarning.className = 'alert alert-warning';
+            alertWarning.style.backgroundColor = '#dcfce7';
+            alertWarning.style.color = '#166534';
+            alertWarning.style.borderColor = '#86efac';
+        } else {
+            alertWarning.style.display = 'none';
+        }
+
+        const dadosSAC = gerarTabelaSAC(valorFinanciado, taxaMensal, mesesSAC);
+        const dadosPRICE = gerarTabelaPRICE(valorFinanciado, taxaMensal, mesesPRICE);
+
         document.getElementById('maxParcela').textContent = formatar(parcelaMaxima);
 
-        const mesesMinimosSAC = Math.ceil(valor / (parcelaMaxima - jurosIniciais));
-        const mesesMinimosPRICE = Math.ceil(Math.log(parcelaMaxima / (parcelaMaxima - jurosIniciais)) / Math.log(1 + i));
+        document.getElementById('sacMeses').textContent = `${dadosSAC.meses} meses`;
+        document.getElementById('sacPrimeira').textContent = formatar(dadosSAC.primeiraParcela);
+        document.getElementById('sacUltima').textContent = formatar(dadosSAC.ultimaParcela);
+        document.getElementById('sacJuros').textContent = formatar(dadosSAC.totalJuros);
+        document.getElementById('sacTotal').textContent = formatar(dadosSAC.totalCusto);
 
-        let mesesSAC = prazoInput ? prazoInput : mesesMinimosSAC;
-        let mesesPRICE = prazoInput ? prazoInput : mesesMinimosPRICE;
+        document.getElementById('priceMeses').textContent = `${dadosPRICE.meses} meses`;
+        document.getElementById('priceParcela').textContent = formatar(dadosPRICE.parcela);
+        document.getElementById('priceJuros').textContent = formatar(dadosPRICE.totalJuros);
+        document.getElementById('priceTotal').textContent = formatar(dadosPRICE.totalCusto);
 
-        if (prazoInput && (prazoInput < mesesMinimosSAC || prazoInput < mesesMinimosPRICE)) {
-            alertWarning.innerHTML = `⚠️ <strong>Atenção:</strong> O prazo de ${prazoInput} meses gera parcelas <strong>acima dos 30% da sua renda</strong>. <br> Sugerimos no mínimo <strong>${mesesMinimosSAC} meses</strong> no SAC ou <strong>${mesesMinimosPRICE} meses</strong> na PRICE para aprovação bancária.`;
-            alertWarning.style.display = "block";
-            alertWarning.className = "alert alert-warning";
-            alertWarning.style.backgroundColor = "#fef3c7";
-            alertWarning.style.color = "#92400e";
-            alertWarning.style.borderColor = "#fcd34d";
-        } else if (prazoInput) {
-            alertWarning.innerHTML = `✅ Excelente! O prazo escolhido de ${prazoInput} meses compromete menos de 30% da sua renda.`;
-            alertWarning.style.display = "block";
-            alertWarning.className = "alert alert-warning";
-            alertWarning.style.backgroundColor = "#dcfce7";
-            alertWarning.style.color = "#166534";
-            alertWarning.style.borderColor = "#86efac";
-        } else {
-            alertWarning.style.display = "none"; 
-        }
-
-        const amortizacaoSAC = valor / mesesSAC;
-        const sacTotalJuros = ((jurosIniciais + (amortizacaoSAC * i)) * mesesSAC) / 2;
-        
-        const priceParcela = valor * (i * Math.pow(1 + i, mesesPRICE)) / (Math.pow(1 + i, mesesPRICE) - 1);
-
-        document.getElementById('sacMeses').textContent = `${mesesSAC} meses`;
-        document.getElementById('sacPrimeira').textContent = formatar(amortizacaoSAC + jurosIniciais);
-        document.getElementById('sacUltima').textContent = formatar(amortizacaoSAC + (amortizacaoSAC * i));
-        document.getElementById('sacJuros').textContent = formatar(sacTotalJuros);
-        document.getElementById('sacTotal').textContent = formatar(valor + sacTotalJuros);
-
-        document.getElementById('priceMeses').textContent = `${mesesPRICE} meses`;
-        document.getElementById('priceParcela').textContent = formatar(priceParcela);
-        document.getElementById('priceJuros').textContent = formatar((priceParcela * mesesPRICE) - valor);
-        document.getElementById('priceTotal').textContent = formatar(priceParcela * mesesPRICE);
-
-        gerarTabelasEvolucao(valor, i, mesesSAC, amortizacaoSAC, mesesPRICE, priceParcela);
-        gerarGrafico(valor, i, mesesSAC, amortizacaoSAC, mesesPRICE, priceParcela);
-
-        results.style.display = "block";
+        gerarTabelasEvolucao(dadosSAC, dadosPRICE);
+        gerarGrafico(valorFinanciado, taxaMensal, dadosSAC, dadosPRICE);
+        results.style.display = 'block';
     }
 
-    function gerarTabelasEvolucao(valor, taxa, mesesSAC, amortizacaoSAC, mesesPRICE, priceParcela) {
-        let tbodySAC = '', saldoSAC = valor;
-        for (let m = 1; m <= mesesSAC; m++) {
-            let juros = saldoSAC * taxa;
-            let parcela = amortizacaoSAC + juros;
-            saldoSAC -= amortizacaoSAC;
-            if (saldoSAC < 0.01) saldoSAC = 0; 
-            tbodySAC += `<tr><td style="text-align: center;">${m}</td><td style="color: var(--primary); font-weight: 600;">${formatar(parcela)}</td><td>${formatar(amortizacaoSAC)}</td><td>${formatar(juros)}</td><td>${formatar(saldoSAC)}</td></tr>`;
-        }
+    function gerarTabelasEvolucao(dadosSAC, dadosPRICE) {
+        let tbodySAC = '';
+        dadosSAC.linhas.forEach((linha) => {
+            tbodySAC += `<tr><td style="text-align: center;">${linha.mes}</td><td style="color: var(--primary); font-weight: 600;">${formatar(linha.parcela)}</td><td>${formatar(linha.amortizacao)}</td><td>${formatar(linha.juros)}</td><td>${formatar(linha.saldo)}</td></tr>`;
+        });
         document.getElementById('tbody-sac').innerHTML = tbodySAC;
 
-        let tbodyPRICE = '', saldoPRICE = valor;
-        for (let m = 1; m <= mesesPRICE; m++) {
-            let juros = saldoPRICE * taxa;
-            let amortizacao = priceParcela - juros;
-            saldoPRICE -= amortizacao;
-            if (saldoPRICE < 0.01) saldoPRICE = 0; 
-            tbodyPRICE += `<tr><td style="text-align: center;">${m}</td><td style="color: var(--danger); font-weight: 600;">${formatar(priceParcela)}</td><td>${formatar(amortizacao)}</td><td>${formatar(juros)}</td><td>${formatar(saldoPRICE)}</td></tr>`;
-        }
+        let tbodyPRICE = '';
+        dadosPRICE.linhas.forEach((linha) => {
+            tbodyPRICE += `<tr><td style="text-align: center;">${linha.mes}</td><td style="color: var(--danger); font-weight: 600;">${formatar(linha.parcela)}</td><td>${formatar(linha.amortizacao)}</td><td>${formatar(linha.juros)}</td><td>${formatar(linha.saldo)}</td></tr>`;
+        });
         document.getElementById('tbody-price').innerHTML = tbodyPRICE;
     }
 
-    function gerarGrafico(valorAberto, taxa, mesesSAC, amortizacaoSAC, mesesPRICE, priceParcela) {
-        const maxMeses = Math.max(mesesSAC, mesesPRICE); 
-        const labels = [], dadosSAC = [], dadosPRICE = [];
+    function gerarGrafico(valorAberto, taxaMensal, dadosSAC, dadosPRICE) {
+        const maxMeses = Math.max(dadosSAC.meses, dadosPRICE.meses);
+        const labels = [];
+        const dadosGraficoSAC = [];
+        const dadosGraficoPRICE = [];
 
         for (let mes = 1; mes <= maxMeses; mes++) {
             labels.push(`${mes}º Mês`);
-            if (mes <= mesesSAC) {
-                let saldo = valorAberto - (amortizacaoSAC * (mes - 1));
-                // Correção: Garantindo que são números nativos (floats) e não strings para o eixo Y
-                dadosSAC.push(amortizacaoSAC + (saldo * taxa));
-            } else { dadosSAC.push(null); } // Use null em vez de zero para não quebrar a linha do gráfico abruptamente
+            const linhaSAC = dadosSAC.linhas[mes - 1];
+            dadosGraficoSAC.push(linhaSAC ? linhaSAC.parcela : null);
 
-            if (mes <= mesesPRICE) { 
-                dadosPRICE.push(priceParcela); 
-            } else { dadosPRICE.push(null); }
+            const linhaPRICE = dadosPRICE.linhas[mes - 1];
+            dadosGraficoPRICE.push(linhaPRICE ? linhaPRICE.parcela : null);
         }
 
         const ctx = document.getElementById('graficoEvolucao').getContext('2d');
-        if (chartInstance) { chartInstance.destroy(); }
+        if (chartInstance) {
+            chartInstance.destroy();
+        }
 
         chartInstance = new Chart(ctx, {
             type: 'line',
             data: {
                 labels: labels,
                 datasets: [
-                    { label: 'Parcela - SAC', data: dadosSAC, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderWidth: 3, fill: true, tension: 0.2, pointRadius: 0 },
-                    { label: 'Parcela - PRICE', data: dadosPRICE, borderColor: '#ef4444', backgroundColor: 'transparent', borderWidth: 2, borderDash: [5, 10], fill: false, pointRadius: 0 }
+                    {
+                        label: 'Parcela - SAC',
+                        data: dadosGraficoSAC,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.2,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Parcela - PRICE',
+                        data: dadosGraficoPRICE,
+                        borderColor: '#ef4444',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        borderDash: [5, 10],
+                        fill: false,
+                        pointRadius: 0
+                    }
                 ]
             },
             options: {
-                responsive: true, 
-                maintainAspectRatio: false, 
+                responsive: true,
+                maintainAspectRatio: false,
                 interaction: { mode: 'index', intersect: false },
-                plugins: { 
-                    legend: { position: 'top', align: 'end', labels: { padding: 20, color: '#475569', font: { size: 12, weight: 600 } } },
-                    tooltip: { callbacks: { label: function(context) { return context.dataset.label + ': ' + formatar(context.raw); } } } 
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        align: 'end',
+                        labels: { padding: 20, color: '#475569', font: { size: 12, weight: 600 } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return `${context.dataset.label}: ${formatar(context.raw)}`;
+                            }
+                        }
+                    }
                 },
-                scales: { 
-                    y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { padding: 10, color: '#64748b', callback: function(value) { return 'R$ ' + value.toLocaleString('pt-BR'); } } },
-                    x: { grid: { display: false }, ticks: { padding: 10, color: '#64748b', font: { size: 10 }, maxRotation: 45 } }
+                scales: {
+                    y: {
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: {
+                            padding: 10,
+                            color: '#64748b',
+                            callback: function(value) { return `R$ ${Number(value).toLocaleString('pt-BR')}`; }
+                        }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { padding: 10, color: '#64748b', font: { size: 10 }, maxRotation: 45 }
+                    }
                 }
             }
         });
