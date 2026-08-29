@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JaguarSim Finanças - Simulador Inteligente</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --background-start: #dbeafe;
+            --background-end: #ffffff;
+            --card: #ffffff;
+            --text-dark: #0f172a;
+            --text-muted: #64748b;
+            --danger: #ef4444;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --border: #e2e8f0;
+            --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1);
+        }
+        
+        * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+        
+        body { 
+            background: linear-gradient(135deg, var(--background-start) 0%, var(--background-end) 100%);
+            color: var(--text-dark); padding: 40px; margin: 0; display: flex; justify-content: center; min-height: 100vh;
+        }
+        
+        .container { 
+            background: var(--card); padding: 40px; border-radius: 16px; box-shadow: var(--shadow-lg); max-width: 960px; width: 100%;
+        }
+        
+        .header { text-align: center; margin-bottom: 40px; }
+        .header h1 { color: var(--primary); margin: 0; font-size: 2.2em; }
+        .header p.subtitle { font-size: 1em; color: var(--text-muted); margin: 5px 0 0 0; }
+        
+        .input-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 25px; }
+        @media (max-width: 768px) { .input-grid { grid-template-columns: 1fr; } }
+        
+        .form-group-card { 
+            background: #f8fafc; padding: 20px; border-radius: 12px; border: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow-sm);
+        }
+        .form-group-card label { font-weight: 600; font-size: 0.9em; display: flex; align-items: center; gap: 8px; }
+        .form-group-card input { padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 1.1em; transition: 0.3s; width: 100%; }
+        .form-group-card input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2); }
+        
+        .input-with-button { display: flex; gap: 10px; }
+        .input-with-button input { flex: 1; }
+        .btn-selic { padding: 10px 15px; background: linear-gradient(135deg, #cbd5e1 0%, #e2e8f0 100%); color: #334155; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85em; transition: 0.3s; white-space: nowrap;}
+        .btn-selic:hover { background: #cbd5e1; }
+        
+        .btn-main-calc { width: 100%; padding: 18px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%); color: white; border: none; border-radius: 12px; font-size: 1.2em; font-weight: 700; cursor: pointer; transition: 0.3s; margin-top: 15px; box-shadow: 0 4px 6px rgba(37, 99, 235, 0.3); }
+        .btn-main-calc:hover { background: var(--primary-hover); transform: translateY(-2px); box-shadow: 0 6px 12px rgba(37, 99, 235, 0.4); }
+        
+        .alert { padding: 15px; border-radius: 8px; margin-top: 20px; display: none; font-weight: 500; text-align: center; animation: fadeIn 0.5s ease; }
+        .alert-danger { background: #fee2e2; color: var(--danger); border: 1px solid #fca5a5; font-weight: bold;}
+        .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+        
+        .results { display: none; margin-top: 40px; animation: fadeIn 0.5s ease-in-out; }
+        
+        .results-header-banner { text-align: center; padding: 20px; background: rgba(16, 185, 129, 0.1); border-radius: 12px; margin-bottom: 20px; border: 1px solid rgba(16, 185, 129, 0.2); font-size: 1.1em; color: #166534; }
+        .results-header-banner strong { font-size: 1.4em; color: var(--success); }
+        
+        .grid-comparison { display: grid; grid-template-columns: repeat(2, 1fr); gap: 25px; margin-bottom: 30px; }
+        @media (max-width: 768px) { .grid-comparison { grid-template-columns: 1fr; } }
+        
+        .card-result { padding: 30px; border-radius: 16px; border: 1px solid var(--border); position: relative; overflow: hidden; box-shadow: var(--shadow-md); }
+        .card-result h2 { margin-top: 0; font-size: 1.6em; margin-bottom: 5px; }
+        .card-result p.card-tagline { font-size: 0.9em; color: var(--text-muted); margin-bottom: 25px; margin-top: 0;}
+        
+        .card-result-sac { background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, #ffffff 100%); border-color: rgba(59, 130, 246, 0.3); }
+        .card-result-sac h2 { color: #3b82f6; }
+        .card-result-price { background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, #ffffff 100%); border-color: rgba(239, 68, 68, 0.2); }
+        .card-result-price h2 { color: #ef4444; }
+        
+        .card-result ul { list-style: none; padding: 0; margin: 0; }
+        .card-result ul li { margin-bottom: 15px; display: flex; justify-content: space-between; border-bottom: 1px dashed var(--border); padding-bottom: 10px; font-size: 1em; }
+        .card-result ul li strong { color: var(--text-dark); font-weight: 700;}
+        
+        .badge-highlight { position: absolute; top: 20px; right: 20px; padding: 6px 14px; border-radius: 20px; font-size: 0.75em; font-weight: 700; text-transform: uppercase; }
+        .badge-highlight-sac { background: var(--success); color: white; }
+        .badge-highlight-price { background: #fee2e2; color: var(--danger); border: 1px solid rgba(239, 68, 68, 0.2);}
+        
+        .chart-container, .table-container-wrapper { margin-top: 30px; padding: 30px; background: white; border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-sm); }
+        .chart-container h3, .table-container-wrapper h3 { text-align: center; margin-top: 0; margin-bottom: 25px; font-size: 1.3em;}
+        
+        /* Container essencial para o Chart.js funcionar corretamente com responsividade */
+        .canvas-wrapper { position: relative; height: 350px; width: 100%; }
+        
+        .tabs { display: flex; gap: 12px; margin-bottom: 20px; justify-content: center; }
+        .tab-btn { padding: 12px 24px; border: 1px solid var(--border); background: #f8fafc; border-radius: 8px; cursor: pointer; font-weight: 600; color: var(--text-muted); transition: 0.3s; font-size: 0.95em;}
+        .tab-btn.active.sac { background: #3b82f6; color: white; border-color: #3b82f6;}
+        .tab-btn.active.price { background: #ef4444; color: white; border-color: #ef4444;}
+        
+        .table-scroll { max-height: 400px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; }
+        table { width: 100%; border-collapse: collapse; text-align: right; font-size: 0.95em; min-width: 600px;}
+        th, td { padding: 16px; border-bottom: 1px solid var(--border); }
+        th { background: #f1f5f9; position: sticky; top: 0; color: #475569; font-weight: 600; z-index: 1; font-size: 0.85em; text-transform: uppercase;}
+        th:first-child, td:first-child { text-align: center; color: var(--text-muted);}
+        tbody tr:hover { background: rgba(59, 130, 246, 0.05); }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>JaguarSim <span style="font-weight: 300; color: var(--text-dark)">Finanças</span></h1>
+        <p class="subtitle">Simule seu financiamento e compare parcelas com o limite de 30% da sua renda.</p>
+    </div>
+
+    <div class="input-grid">
+        <div class="form-group-card">
+            <label>💰 Valor do Empréstimo (R$)</label>
+            <input type="text" id="valor" placeholder="R$ 0,00" oninput="mascaraMoeda(this)">
+        </div>
+        <div class="form-group-card">
+            <label>👤 Renda Mensal (R$)</label>
+            <input type="text" id="renda" placeholder="R$ 0,00" oninput="mascaraMoeda(this)">
+        </div>
+        <div class="form-group-card">
+            <label>⏳ Prazo Desejado (Meses)</label>
+            <input type="number" id="prazo" placeholder="Vazio = Sugerir ideal">
+        </div>
+        <div class="form-group-card">
+            <label>📈 Taxa de Juros Anual (% a.a)</label>
+            <div class="input-with-button">
+                <input type="number" id="juros" placeholder="Ex: 10.5" step="0.1">
+                <button type="button" class="btn-selic" onclick="buscarSelic()" id="btnSelic">Selic Atual</button>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn-main-calc" onclick="calcular()">SIMULAR FINANCIAMENTO</button>
+
+    <div id="alertError" class="alert alert-danger"></div>
+    <div id="alertWarning" class="alert alert-warning"></div>
+
+    <div id="results" class="results">
+        <div class="results-header-banner">
+            👤 Capacidade de Pagamento: <strong id="maxParcela"></strong> / mês <span>(30% da Renda)</span>
+        </div>
+        
+        <div class="grid-comparison">
+            <div class="card-result card-result-sac">
+                <span class="badge-highlight badge-highlight-sac">MENOR CUSTO TOTAL</span>
+                <h2>Sistema SAC</h2>
+                <p class="card-tagline">Parcelas Decrescentes</p>
+                <ul>
+                    <li>Prazo Calculado: <strong id="sacMeses">--</strong></li>
+                    <li>1ª Parcela: <strong id="sacPrimeira">--</strong></li>
+                    <li>Última Parcela: <strong id="sacUltima">--</strong></li>
+                    <li>Total Juros: <strong id="sacJuros">--</strong></li>
+                    <li>Custo Total: <strong id="sacTotal">--</strong></li>
+                </ul>
+            </div>
+
+            <div class="card-result card-result-price">
+                <span class="badge-highlight badge-highlight-price">PREVISIBILIDADE</span>
+                <h2>Tabela PRICE</h2>
+                <p class="card-tagline">Parcelas Fixas</p>
+                <ul>
+                    <li>Prazo Calculado: <strong id="priceMeses">--</strong></li>
+                    <li>Parcela Fixa: <strong id="priceParcela">--</strong></li>
+                    <li>Total Juros: <strong id="priceJuros">--</strong></li>
+                    <li>Custo Total: <strong id="priceTotal">--</strong></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <h3>📈 EVOLUÇÃO DAS PARCELAS</h3>
+            <!-- Wrapper corrigido para o Chart.js funcionar perfeitamente -->
+            <div class="canvas-wrapper">
+                <canvas id="graficoEvolucao"></canvas>
+            </div>
+        </div>
+
+        <div class="table-container-wrapper">
+            <h3>AMORTIZAÇÃO E DETALHES MENSAIS</h3>
+            <div class="tabs">
+                <button class="tab-btn active sac" id="btn-tab-sac" onclick="mudarAba('sac')">📊 Evolução SAC</button>
+                <button class="tab-btn price" id="btn-tab-price" onclick="mudarAba('price')">📊 Evolução PRICE</button>
+            </div>
+
+            <div class="table-scroll" id="tabela-sac">
+                <table>
+                    <thead><tr><th>Mês</th><th>Parcela</th><th>Amortização</th><th>Juros</th><th>Saldo Devedor</th></tr></thead>
+                    <tbody id="tbody-sac"></tbody>
+                </table>
+            </div>
+            <div class="table-scroll" id="tabela-price" style="display: none;">
+                <table>
+                    <thead><tr><th>Mês</th><th>Parcela</th><th>Amortização</th><th>Juros</th><th>Saldo Devedor</th></tr></thead>
+                    <tbody id="tbody-price"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let chartInstance = null;
+
+    function mascaraMoeda(input) {
+        let valor = input.value.replace(/\D/g, ''); 
+        if (valor === '') { input.value = ''; return; }
+        valor = (parseInt(valor) / 100).toFixed(2) + ''; 
+        valor = valor.replace(".", ",");
+        valor = valor.replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1."); 
+        input.value = "R$ " + valor;
+    }
+
+    function parseMoeda(str) {
+        if(!str) return 0;
+        return parseFloat(str.replace('R$ ', '').replace(/\./g, '').replace(',', '.'));
+    }
+
+    async function buscarSelic() {
+        const btn = document.getElementById('btnSelic');
+        btn.textContent = "Buscando..."; btn.disabled = true;
+        try {
+            const response = await fetch('https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/1?formato=json');
+            const data = await response.json();
+            document.getElementById('juros').value = data[0].valor;
+            btn.textContent = "Atualizado!";
+            setTimeout(() => { btn.textContent = "Selic Atual"; btn.disabled = false; }, 2500);
+        } catch (error) {
+            btn.textContent = "Erro!";
+            setTimeout(() => { btn.textContent = "Selic Atual"; btn.disabled = false; }, 2500);
+        }
+    }
+
+    function formatar(valor) { return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+
+    function mudarAba(tipo) {
+        document.getElementById('btn-tab-sac').className = 'tab-btn' + (tipo === 'sac' ? ' active sac' : '');
+        document.getElementById('btn-tab-price').className = 'tab-btn' + (tipo === 'price' ? ' active price' : '');
+        document.getElementById('tabela-sac').style.display = tipo === 'sac' ? 'block' : 'none';
+        document.getElementById('tabela-price').style.display = tipo === 'price' ? 'block' : 'none';
+    }
+
+    function calcular() {
+        const valor = parseMoeda(document.getElementById('valor').value);
+        const renda = parseMoeda(document.getElementById('renda').value);
+        const jurosAno = parseFloat(document.getElementById('juros').value);
+        const prazoInput = parseInt(document.getElementById('prazo').value);
+        
+        const alertError = document.getElementById('alertError');
+        const alertWarning = document.getElementById('alertWarning');
+        const results = document.getElementById('results');
+
+        if (!valor || !renda || !jurosAno) {
+            alertError.textContent = "Por favor, preencha Valor, Renda e Juros para simular.";
+            alertError.style.display = "block"; alertWarning.style.display = "none"; results.style.display = "none"; return;
+        }
+
+        const parcelaMaxima = renda * 0.30; 
+        const i = Math.pow(1 + (jurosAno / 100), 1 / 12) - 1; 
+        const jurosIniciais = valor * i;
+
+        if (jurosIniciais >= parcelaMaxima) {
+            alertError.textContent = `A parcela máxima permitida é ${formatar(parcelaMaxima)}, mas só os juros mensais já são ${formatar(jurosIniciais)}. Financiamento inviável com essa renda.`;
+            alertError.style.display = "block"; alertWarning.style.display = "none"; results.style.display = "none"; return;
+        }
+
+        alertError.style.display = "none";
+        document.getElementById('maxParcela').textContent = formatar(parcelaMaxima);
+
+        const mesesMinimosSAC = Math.ceil(valor / (parcelaMaxima - jurosIniciais));
+        const mesesMinimosPRICE = Math.ceil(Math.log(parcelaMaxima / (parcelaMaxima - jurosIniciais)) / Math.log(1 + i));
+
+        let mesesSAC = prazoInput ? prazoInput : mesesMinimosSAC;
+        let mesesPRICE = prazoInput ? prazoInput : mesesMinimosPRICE;
+
+        if (prazoInput && (prazoInput < mesesMinimosSAC || prazoInput < mesesMinimosPRICE)) {
+            alertWarning.innerHTML = `⚠️ <strong>Atenção:</strong> O prazo de ${prazoInput} meses gera parcelas <strong>acima dos 30% da sua renda</strong>. <br> Sugerimos no mínimo <strong>${mesesMinimosSAC} meses</strong> no SAC ou <strong>${mesesMinimosPRICE} meses</strong> na PRICE para aprovação bancária.`;
+            alertWarning.style.display = "block";
+            alertWarning.className = "alert alert-warning";
+            alertWarning.style.backgroundColor = "#fef3c7";
+            alertWarning.style.color = "#92400e";
+            alertWarning.style.borderColor = "#fcd34d";
+        } else if (prazoInput) {
+            alertWarning.innerHTML = `✅ Excelente! O prazo escolhido de ${prazoInput} meses compromete menos de 30% da sua renda.`;
+            alertWarning.style.display = "block";
+            alertWarning.className = "alert alert-warning";
+            alertWarning.style.backgroundColor = "#dcfce7";
+            alertWarning.style.color = "#166534";
+            alertWarning.style.borderColor = "#86efac";
+        } else {
+            alertWarning.style.display = "none"; 
+        }
+
+        const amortizacaoSAC = valor / mesesSAC;
+        const sacTotalJuros = ((jurosIniciais + (amortizacaoSAC * i)) * mesesSAC) / 2;
+        
+        const priceParcela = valor * (i * Math.pow(1 + i, mesesPRICE)) / (Math.pow(1 + i, mesesPRICE) - 1);
+
+        document.getElementById('sacMeses').textContent = `${mesesSAC} meses`;
+        document.getElementById('sacPrimeira').textContent = formatar(amortizacaoSAC + jurosIniciais);
+        document.getElementById('sacUltima').textContent = formatar(amortizacaoSAC + (amortizacaoSAC * i));
+        document.getElementById('sacJuros').textContent = formatar(sacTotalJuros);
+        document.getElementById('sacTotal').textContent = formatar(valor + sacTotalJuros);
+
+        document.getElementById('priceMeses').textContent = `${mesesPRICE} meses`;
+        document.getElementById('priceParcela').textContent = formatar(priceParcela);
+        document.getElementById('priceJuros').textContent = formatar((priceParcela * mesesPRICE) - valor);
+        document.getElementById('priceTotal').textContent = formatar(priceParcela * mesesPRICE);
+
+        gerarTabelasEvolucao(valor, i, mesesSAC, amortizacaoSAC, mesesPRICE, priceParcela);
+        gerarGrafico(valor, i, mesesSAC, amortizacaoSAC, mesesPRICE, priceParcela);
+
+        results.style.display = "block";
+    }
+
+    function gerarTabelasEvolucao(valor, taxa, mesesSAC, amortizacaoSAC, mesesPRICE, priceParcela) {
+        let tbodySAC = '', saldoSAC = valor;
+        for (let m = 1; m <= mesesSAC; m++) {
+            let juros = saldoSAC * taxa;
+            let parcela = amortizacaoSAC + juros;
+            saldoSAC -= amortizacaoSAC;
+            if (saldoSAC < 0.01) saldoSAC = 0; 
+            tbodySAC += `<tr><td style="text-align: center;">${m}</td><td style="color: var(--primary); font-weight: 600;">${formatar(parcela)}</td><td>${formatar(amortizacaoSAC)}</td><td>${formatar(juros)}</td><td>${formatar(saldoSAC)}</td></tr>`;
+        }
+        document.getElementById('tbody-sac').innerHTML = tbodySAC;
+
+        let tbodyPRICE = '', saldoPRICE = valor;
+        for (let m = 1; m <= mesesPRICE; m++) {
+            let juros = saldoPRICE * taxa;
+            let amortizacao = priceParcela - juros;
+            saldoPRICE -= amortizacao;
+            if (saldoPRICE < 0.01) saldoPRICE = 0; 
+            tbodyPRICE += `<tr><td style="text-align: center;">${m}</td><td style="color: var(--danger); font-weight: 600;">${formatar(priceParcela)}</td><td>${formatar(amortizacao)}</td><td>${formatar(juros)}</td><td>${formatar(saldoPRICE)}</td></tr>`;
+        }
+        document.getElementById('tbody-price').innerHTML = tbodyPRICE;
+    }
+
+    function gerarGrafico(valorAberto, taxa, mesesSAC, amortizacaoSAC, mesesPRICE, priceParcela) {
+        const maxMeses = Math.max(mesesSAC, mesesPRICE); 
+        const labels = [], dadosSAC = [], dadosPRICE = [];
+
+        for (let mes = 1; mes <= maxMeses; mes++) {
+            labels.push(`${mes}º Mês`);
+            if (mes <= mesesSAC) {
+                let saldo = valorAberto - (amortizacaoSAC * (mes - 1));
+                // Correção: Garantindo que são números nativos (floats) e não strings para o eixo Y
+                dadosSAC.push(amortizacaoSAC + (saldo * taxa));
+            } else { dadosSAC.push(null); } // Use null em vez de zero para não quebrar a linha do gráfico abruptamente
+
+            if (mes <= mesesPRICE) { 
+                dadosPRICE.push(priceParcela); 
+            } else { dadosPRICE.push(null); }
+        }
+
+        const ctx = document.getElementById('graficoEvolucao').getContext('2d');
+        if (chartInstance) { chartInstance.destroy(); }
+
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    { label: 'Parcela - SAC', data: dadosSAC, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderWidth: 3, fill: true, tension: 0.2, pointRadius: 0 },
+                    { label: 'Parcela - PRICE', data: dadosPRICE, borderColor: '#ef4444', backgroundColor: 'transparent', borderWidth: 2, borderDash: [5, 10], fill: false, pointRadius: 0 }
+                ]
+            },
+            options: {
+                responsive: true, 
+                maintainAspectRatio: false, 
+                interaction: { mode: 'index', intersect: false },
+                plugins: { 
+                    legend: { position: 'top', align: 'end', labels: { padding: 20, color: '#475569', font: { size: 12, weight: 600 } } },
+                    tooltip: { callbacks: { label: function(context) { return context.dataset.label + ': ' + formatar(context.raw); } } } 
+                },
+                scales: { 
+                    y: { grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { padding: 10, color: '#64748b', callback: function(value) { return 'R$ ' + value.toLocaleString('pt-BR'); } } },
+                    x: { grid: { display: false }, ticks: { padding: 10, color: '#64748b', font: { size: 10 }, maxRotation: 45 } }
+                }
+            }
+        });
+    }
+</script>
+</body>
+</html>
